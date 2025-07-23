@@ -9,65 +9,25 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('moveAllToSingleWindow').addEventListener('click', moveAllToSingleWindow);
 });
 
-// Simple logging helper
-function log(message, ...args) {
-  console.log('[Tab Organizer]', message, ...args);
-  chrome.runtime.sendMessage({ type: 'log', data: { message, args } }).catch(() => { });
-}
+// Use shared utilities
+const { lexHost } = window.TabOrganizerUtils;
+const { log, sendMessageWithErrorHandling } = window.TabOrganizerUtils;
 
 
 // Sort tabs by URL across all windows
 function sortAllWindows() {
-  chrome.runtime.sendMessage({
+  sendMessageWithErrorHandling({
     action: 'sortAllWindows'
-  }, function (response) {
-    if (chrome.runtime.lastError) {
-      log('Error from background:', chrome.runtime.lastError.message);
-    } else if (!response.success) {
-      log('Background failed:', response.error);
-    }
-  });
+  }, 'sortAllWindows');
 }
 
 // Sort tabs by URL in current window
 function sortCurrentWindow() {
-  chrome.runtime.sendMessage({
+  sendMessageWithErrorHandling({
     action: 'sortCurrentWindow'
-  }, function (response) {
-    if (chrome.runtime.lastError) {
-      log('Error from background:', chrome.runtime.lastError.message);
-    } else if (!response.success) {
-      log('Background failed:', response.error);
-    }
-  });
+  }, 'sortCurrentWindow');
 }
 
-// Extract domain from URL with better handling for sleeping tabs
-function lexHost(url) {
-  try {
-    var u = new URL(url);
-
-    if (u.protocol === 'chrome-extension:' || u.protocol === 'moz-extension:') {
-      return u.host;
-    }
-
-    if (u.protocol === 'file:') {
-      return 'file';
-    }
-
-    if (u.protocol === 'data:') {
-      return 'data';
-    }
-
-    if (u.protocol === 'about:' || u.protocol === 'chrome:') {
-      return u.host || u.pathname.split('/')[0];
-    }
-
-    return u.hostname;
-  } catch (e) {
-    return url || '';
-  }
-}
 
 // Extract tabs from current domain into a new window
 function extractDomain() {
@@ -79,69 +39,41 @@ function extractDomain() {
 
     var activeTab = activeTabs[0];
 
-    chrome.runtime.sendMessage({
+    sendMessageWithErrorHandling({
       action: 'extractDomain',
       tabId: activeTab.id,
       url: activeTab.url
-    }, function (response) {
-      if (chrome.runtime.lastError) {
-        log('Error from background:', chrome.runtime.lastError.message);
-      } else if (!response.success) {
-        log('Background failed:', response.error);
-      }
-    });
+    }, 'extractDomain');
   });
 }
 
 // Remove duplicates within current window only
 function removeDuplicatesWindow() {
-  chrome.runtime.sendMessage({
+  sendMessageWithErrorHandling({
     action: 'removeDuplicatesWindow'
-  }, function (response) {
-    if (chrome.runtime.lastError) {
-      log('Error from background:', chrome.runtime.lastError.message);
-    } else if (!response.success) {
-      log('Background failed:', response.error);
-    }
-  });
+  }, 'removeDuplicatesWindow');
 }
 
 // Remove duplicates within each window separately
 function removeDuplicatesAllWindows() {
-  chrome.runtime.sendMessage({
+  sendMessageWithErrorHandling({
     action: 'removeDuplicatesAllWindows'
-  }, function (response) {
-    if (chrome.runtime.lastError) {
-      log('Error from background:', chrome.runtime.lastError.message);
-    } else if (!response.success) {
-      log('Background failed:', response.error);
-    }
-  });
+  }, 'removeDuplicatesAllWindows');
 }
 
 // Remove duplicates across all windows globally
 function removeDuplicatesGlobally() {
-  chrome.runtime.sendMessage({
+  sendMessageWithErrorHandling({
     action: 'removeDuplicatesGlobally'
-  }, function (response) {
-    if (chrome.runtime.lastError) {
-      log('Error from background:', chrome.runtime.lastError.message);
-    } else if (!response.success) {
-      log('Background failed:', response.error);
-    }
-  });
+  }, 'removeDuplicatesGlobally');
 }
 
 // Extract all domains into separate windows
 function extractAllDomains() {
-  chrome.runtime.sendMessage({
+  sendMessageWithErrorHandling({
     action: 'extractAllDomains'
-  }, function (response) {
-    if (chrome.runtime.lastError) {
-      log('Error from background:', chrome.runtime.lastError.message);
-    } else if (!response.success) {
-      log('Background failed:', response.error);
-    } else if (response.cancelled) {
+  }, 'extractAllDomains', function(response) {
+    if (response.cancelled) {
       log('Extract all domains cancelled by user');
     }
   });
@@ -157,15 +89,9 @@ function moveAllToSingleWindow() {
 
     var activeTab = activeTabs[0];
 
-    chrome.runtime.sendMessage({
+    sendMessageWithErrorHandling({
       action: 'moveAllToSingleWindow',
       activeTabId: activeTab.id
-    }, function (response) {
-      if (chrome.runtime.lastError) {
-        log('Error from background:', chrome.runtime.lastError.message);
-      } else if (!response.success) {
-        log('Background failed:', response.error);
-      }
-    });
+    }, 'moveAllToSingleWindow');
   });
 }

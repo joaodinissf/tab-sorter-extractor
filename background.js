@@ -1,6 +1,13 @@
 // Background service worker for persistent logging
 console.log('Tab Organizer service worker starting...');
 
+// Import shared utilities
+importScripts('utils/urlUtils.js');
+importScripts('utils/messageUtils.js');
+importScripts('utils/tabUtils.js');
+const { lexHost } = window.TabOrganizerUtils;
+const { sortTabsByUrl, moveTabsToSortedPositions } = window.TabOrganizerUtils;
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'log') {
     console.log('[Tab Organizer]', message.data.message, ...message.data.args);
@@ -70,32 +77,6 @@ async function handleSortCurrentWindow(sendResponse) {
   }
 }
 
-// Extract domain from URL with better handling for sleeping tabs
-function lexHost(url) {
-  try {
-    var u = new URL(url);
-
-    if (u.protocol === 'chrome-extension:' || u.protocol === 'moz-extension:') {
-      return u.host;
-    }
-
-    if (u.protocol === 'file:') {
-      return 'file';
-    }
-
-    if (u.protocol === 'data:') {
-      return 'data';
-    }
-
-    if (u.protocol === 'about:' || u.protocol === 'chrome:') {
-      return u.host || u.pathname.split('/')[0];
-    }
-
-    return u.hostname;
-  } catch (e) {
-    return url || '';
-  }
-}
 
 async function handleExtractDomain(message, sendResponse) {
   try {
@@ -133,21 +114,9 @@ async function handleExtractDomain(message, sendResponse) {
     setTimeout(async () => {
       const windowTabs = await chrome.tabs.query({ windowId: newWindow.id });
 
-      // Filter out pinned tabs for sorting
-      const unpinnedTabs = windowTabs.filter(tab => !tab.pinned);
-
-      // Sort unpinned tabs by URL
-      unpinnedTabs.sort((a, b) => {
-        const urlA = a.pendingUrl || a.url;
-        const urlB = b.pendingUrl || b.url;
-        return urlA.localeCompare(urlB);
-      });
-
-      // Move unpinned tabs to sorted positions (starting after any pinned tabs)
-      const pinnedCount = windowTabs.filter(tab => tab.pinned).length;
-      for (let i = 0; i < unpinnedTabs.length; i++) {
-        await chrome.tabs.move(unpinnedTabs[i].id, { index: pinnedCount + i });
-      }
+      // Sort tabs using shared utility
+      const { sortedTabs, pinnedCount } = sortTabsByUrl(windowTabs);
+      await moveTabsToSortedPositions(newWindow.id, sortedTabs, pinnedCount);
 
       // Activate the original active tab
       await chrome.tabs.update(message.tabId, { active: true });
@@ -489,23 +458,8 @@ async function performExtractAllDomains(domainAnalysis) {
 async function sortWindowTabs(windowId) {
   try {
     const tabs = await chrome.tabs.query({ windowId });
-    // Separate pinned and unpinned tabs
-    const pinnedTabs = tabs.filter(tab => tab.pinned);
-    const unpinnedTabs = tabs.filter(tab => !tab.pinned);
-    // Sort unpinned tabs by URL
-    unpinnedTabs.sort((a, b) => {
-      const urlA = a.pendingUrl || a.url;
-      const urlB = b.pendingUrl || b.url;
-      return urlA.localeCompare(urlB);
-    });
-
-    // Move unpinned tabs to their sorted positions (starting after pinned tabs)
-    for (let i = 0; i < unpinnedTabs.length; i++) {
-      await chrome.tabs.move(unpinnedTabs[i].id, {
-        windowId,
-        index: pinnedTabs.length + i
-      });
-    }
+    const { sortedTabs, pinnedCount } = sortTabsByUrl(tabs);
+    await moveTabsToSortedPositions(windowId, sortedTabs, pinnedCount);
   } catch (error) {
     console.error('[Tab Organizer] Error sorting window tabs:', error);
   }
